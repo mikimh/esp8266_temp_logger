@@ -1,1 +1,1 @@
-# esp8266_temp_logger
+# ESP8266 Temperature logger
