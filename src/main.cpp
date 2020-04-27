@@ -36,7 +36,9 @@ const char* password = "12345678";
 
 // current temperature & humidity, updated in loop()
 double ta = 0.0;
+double ta_offset = 0; 
 double tb = 0.0;
+double tb_offset = 1.0; 
 
 // Create AsyncWebServer object on port 80
 AsyncWebServer server(80);
@@ -49,12 +51,26 @@ unsigned long previousMillisMemory = 0;
 
 // Updates readings every 10 seconds
 const long interval = 10000;  
-const long intervalMemory = 1000;  
+const long intervalMemory = 1800000;  
 
+const String file_name = "/file.txt";
 // current timestamp 1586895132 
 // 20years to seconds 631138519
 
 int timestamp =  955756613;
+
+File file; 
+const char graph_html[] PROGMEM = R"rawliteral(
+<!DOCTYPE HTML><html>
+<head></head> 
+<body>
+  <p>
+    <span>Temperature</span> 
+    <span>%TEMPERATURE%</span> 
+  </p>
+</body>  
+
+</html>)rawliteral";
 
 const char index_html[] PROGMEM = R"rawliteral(
 <!DOCTYPE HTML><html>
@@ -88,6 +104,8 @@ const char index_html[] PROGMEM = R"rawliteral(
     <span id="humidity">%TEMPERATUREB%</span>
     <sup class="units">&deg;C</sup>
   </p>
+  <span class="data">%DATA%</span>
+  
 </body>
 <script>
 setInterval(function ( ) {
@@ -97,7 +115,7 @@ setInterval(function ( ) {
       document.getElementById("temperature").innerHTML = this.responseText;
     }
   };
-  xhttp.open("GET", "/temperature", true);
+  xhttp.open("GET", "/get_temperature", true);
   xhttp.send();
 }, 10000 ) ;
 
@@ -114,6 +132,90 @@ setInterval(function ( ) {
 </script>
 </html>)rawliteral";
 
+String readFile(){ 
+  String output = ""; 
+  String line = ""; 
+
+  bool success = SPIFFS.begin(); 
+  
+  if (success) {
+    Serial.println("File system mounted with success");
+  } else {
+    Serial.println("Error mounting the file system");
+    return String();
+  }
+  File local_file = SPIFFS.open(file_name, "r");
+  if (!local_file) {
+    Serial.println("Error opening file for writing");
+    return String(); 
+  }
+  Serial.println("Starting Reading File"); 
+  while(local_file.available()){
+    Serial.println("File available"); 
+    line = local_file.readString();
+    Serial.println("Line:"); 
+    Serial.println(line);
+    output += line; 
+  }
+  return output; 
+}
+
+String readDataFile(){ 
+  String output = ""; 
+  String line = ""; 
+
+  bool success = SPIFFS.begin(); 
+  
+  if (success) {
+    Serial.println("File system mounted with success");
+  } else {
+    Serial.println("Error mounting the file system");
+    return String();
+  }
+  File local_file = SPIFFS.open(file_name, "r");
+  if (!local_file) {
+    Serial.println("Error opening file for writing");
+    return String(); 
+  }
+  Serial.println("Starting Reading File"); 
+  while(local_file.available()){
+    Serial.println("File available"); 
+    line = local_file.readString();
+    Serial.println("Line:"); 
+    Serial.println(line);
+    output += line; 
+  }
+  return output; 
+}
+
+size_t writeToFile(String text){ 
+  bool success = SPIFFS.begin(); 
+  
+  if (success) {
+    Serial.println("File system mounted with success");
+  } else {
+    Serial.println("Error mounting the file system");
+    return 0;
+  }
+  File local_file = SPIFFS.open(file_name, "a");
+  if (!local_file) {
+    Serial.println("Error opening file for writing");
+    return 0; 
+  }
+
+  Serial.println("Starting Writing File"); 
+
+  int bytesWritten = local_file.println(text);
+  
+  if (bytesWritten > 0) {
+    Serial.println("File was written");
+  } else {
+    Serial.println("File write failed");
+    Serial.println(bytesWritten);
+  }
+  return bytesWritten; 
+}
+
 // Replaces placeholder with DHT values
 String processor(const String& var){
   Serial.println("Processor");
@@ -123,14 +225,60 @@ String processor(const String& var){
   }
   else if(var == "TEMPERATUREB"){
     return String(tb);
+  }else if( var == "DATA"){
+  String data = readDataFile(); 
+  data.replace("\n", "<br>"); 
+  return data; 
   }
   return String();
 }
 
+String graph_processor(const String& var){ 
+  Serial.println("Processor");
+  Serial.println(var);
+  String output = ""; 
+  String line = ""; 
+
+  bool success = SPIFFS.begin(); 
+  
+  if (success) {
+    Serial.println("File system mounted with success");
+  } else {
+    Serial.println("Error mounting the file system");
+    return String();
+  }
+  File local_file = SPIFFS.open(file_name, "r");
+  if (!local_file) {
+    Serial.println("Error opening file for writing");
+    return String(); 
+  }
+  if(var == "TEMPERATURE"){
+    Serial.println("Temperature start"); 
+    while(local_file.available()){
+      Serial.println("File available"); 
+      line = local_file.readString();
+      Serial.println("Line:"); 
+      Serial.println(line);
+      output += line; 
+    }
+
+    Serial.println("Output:"); 
+    Serial.println(output); 
+    local_file.close(); 
+    return output;
+  }
+  return String();
+}
+
+String get_temperatureA(){
+  return String(ta);
+}
+
+
 void setup(){
   // Serial port for debugging purposes
   Serial.begin(9600);
-
+/*
   bool success = SPIFFS.begin(); 
   
   if (success) {
@@ -140,24 +288,13 @@ void setup(){
     return;
   }
  
-  File file = SPIFFS.open("/file.txt", "w");
+  file = SPIFFS.open("/file.txt", "w+");
  
   if (!file) {
     Serial.println("Error opening file for writing");
     return;
   }
- 
-  int bytesWritten = file.print("TEST SPIFFS");
- 
-  if (bytesWritten > 0) {
-    Serial.println("File was written");
-    Serial.println(bytesWritten);
- 
-  } else {
-    Serial.println("File write failed");
-  }
- 
-  file.close();
+ */
   Serial.print("Setting thermocouple...");
   thermocoupleA.begin(thermoCLK, thermoCSA, thermoDO);
   thermocoupleB.begin(thermoCLK, thermoCSB, thermoDO);
@@ -178,16 +315,19 @@ void setup(){
     request->send_P(200, "text/html", index_html, processor);
   });
   server.on("/temperature", HTTP_GET, [](AsyncWebServerRequest *request){
-    request->send_P(200, "text/plain", String(ta).c_str());
+    request->send_P(200, "text/html", graph_html, graph_processor);
   });
   server.on("/humidity", HTTP_GET, [](AsyncWebServerRequest *request){
     request->send_P(200, "text/plain", String(tb).c_str());
   });
 
+  server.on("/get_temperatureA", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send_P(200, "text/plain", String(ta).c_str());
+  });
   // Start server
   server.begin();
 }
- 
+
 void loop(){  
   unsigned long currentMillis = millis();
   if (currentMillis - previousMillis >= interval) {
@@ -198,51 +338,41 @@ void loop(){
     // Read temperature as Fahrenheit (isFahrenheit = true)
     //float newT = dht.readTemperature(true);
     // if temperature read failed, don't change t value
-
-    // Read Humidity
-    Serial.print("Temp A:"); 
-    Serial.print(thermocoupleA.readCelsius());
-    Serial.println(" C ");
-
-    Serial.print("Temp B:"); 
-    Serial.print(thermocoupleB.readCelsius());
-    Serial.println(" C ");
-    uint16_t newTA = thermocoupleA.readCelsius(); // dht.readHumidity(); 
+    double newTA = thermocoupleA.readCelsius(); // dht.readHumidity(); 
     
     // if humidity read failed, don't change h value 
     if (isnan(newTA)) {
       Serial.println("Failed to read from DHT sensor!");
     }
     else {
-      ta = newTA;
+      ta = newTA + ta_offset;
     }
     
-    uint16_t newTB = thermocoupleB.readCelsius(); // dht.readHumidity(); 
+    double newTB = thermocoupleB.readCelsius(); // dht.readHumidity(); 
     
     // if humidity read failed, don't change h value 
     if (isnan(newTB)) {
       Serial.println("Failed to read from DHT sensor!");
     }
     else {
-      tb = newTB;
+      tb = newTB+tb_offset;
     }
+
+    // Read Humidity
+    Serial.print("Temp A:"); 
+    Serial.print(ta);
+    Serial.println(" C ");
+
+    Serial.print("Temp B:"); 
+    Serial.print(tb);
+    Serial.println(" C ");
+
     Serial.println(); 
   }
 
  if (currentMillis - previousMillisMemory >= intervalMemory) {
     previousMillisMemory = currentMillis;
 
-    uint8_t newTB = thermocoupleB.readCelsius();
-
-    EEPROM.write(addr, newTB);
-    addr = addr + 1;
-    if (addr == 512) {
-      addr = 0;
-      if (EEPROM.commit()) {
-        Serial.println("EEPROM successfully committed");
-      } else {
-        Serial.println("ERROR! EEPROM commit failed");
-      }
-    }
+    writeToFile(String(ta)+ " "+String(tb)+"; "); 
   }
 }
